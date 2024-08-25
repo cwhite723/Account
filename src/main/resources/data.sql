@@ -1,0 +1,9 @@
+INSERT INTO members (name) VALUES ('조하얀');
+INSERT INTO members (name) VALUES ('문세연');
+INSERT INTO members (name) VALUES ('김윤정');
+INSERT INTO members (name) VALUES ('전용민');
+INSERT INTO members (name) VALUES ('조하늘');
+INSERT INTO members (name) VALUES ('신짱구');
+INSERT INTO members (name) VALUES ('폼폼푸린');
+INSERT INTO members (name) VALUES ('몽모');
+INSERT INTO members (name) VALUES ('마이크');
