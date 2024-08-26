@@ -71,8 +71,6 @@ public class Account extends BaseEntity {
 
     public void isOwner(Long loginId) {
         if (!Objects.equals(this.member.getId(), loginId)) {
-            System.out.println(this.member.getId());
-            System.out.println(loginId);
             throw new CustomException(ErrorCode.USER_NOT_ACCOUNT_OWNER);
         }
     }
