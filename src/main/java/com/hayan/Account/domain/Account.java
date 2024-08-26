@@ -52,7 +52,12 @@ public class Account extends BaseEntity {
     }
 
     public void close(Long loginId) {
-        canClose(loginId);
+        isOwner(loginId);
+        if (this.balance > 0)
+            throw new CustomException(ErrorCode.BALANCE_REMAINING_FOR_CLOSE);
+        if (this.accountStatus == UNREGISTERED)
+            throw new CustomException(ErrorCode.ACCOUNT_ALREADY_CLOSED);
+
         this.accountStatus = UNREGISTERED;
     }
 
@@ -62,15 +67,6 @@ public class Account extends BaseEntity {
 
     public void deposit(Integer amount) {
         this.balance += amount;
-    }
-
-    private void canClose(Long loginId) {
-        isOwner(loginId);
-
-        if (this.balance > 0)
-            throw new CustomException(ErrorCode.BALANCE_REMAINING_FOR_CLOSE);
-        if (this.accountStatus == UNREGISTERED)
-            throw new CustomException(ErrorCode.ACCOUNT_ALREADY_CLOSED);
     }
 
     public void isOwner(Long loginId) {
