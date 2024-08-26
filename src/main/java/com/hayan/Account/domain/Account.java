@@ -2,9 +2,13 @@ package com.hayan.Account.domain;
 
 import com.hayan.Account.common.BaseEntity;
 import com.hayan.Account.domain.converter.AccountStatusConverter;
+import com.hayan.Account.exception.CustomException;
+import com.hayan.Account.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.util.Objects;
 
 import static com.hayan.Account.domain.Account.AccountStatus.IN_USE;
 import static com.hayan.Account.domain.Account.AccountStatus.UNREGISTERED;
@@ -47,7 +51,8 @@ public class Account extends BaseEntity {
         return new Account(member, accountNumber, balance);
     }
 
-    public void close() {
+    public void close(Long loginId) {
+        canClose(loginId);
         this.accountStatus = UNREGISTERED;
     }
 
@@ -57,5 +62,22 @@ public class Account extends BaseEntity {
 
     public void deposit(Integer amount) {
         this.balance += amount;
+    }
+
+    private void canClose(Long loginId) {
+        isOwner(loginId);
+
+        if (this.balance > 0)
+            throw new CustomException(ErrorCode.BALANCE_REMAINING_FOR_CLOSE);
+        if (this.accountStatus == UNREGISTERED)
+            throw new CustomException(ErrorCode.ACCOUNT_ALREADY_CLOSED);
+    }
+
+    public void isOwner(Long loginId) {
+        if (!Objects.equals(this.member.getId(), loginId)) {
+            System.out.println(this.member.getId());
+            System.out.println(loginId);
+            throw new CustomException(ErrorCode.USER_NOT_ACCOUNT_OWNER);
+        }
     }
 }

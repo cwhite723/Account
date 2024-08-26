@@ -2,9 +2,13 @@ package com.hayan.Account.domain;
 
 import com.hayan.Account.common.BaseEntity;
 import com.hayan.Account.domain.converter.TransactionResultConverter;
+import com.hayan.Account.exception.CustomException;
+import com.hayan.Account.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.util.Objects;
 
 import static lombok.AccessLevel.PROTECTED;
 
@@ -39,6 +43,7 @@ public abstract class Transaction extends BaseEntity {
         this.transactionResult = transactionResult;
     }
 
+    public abstract void canCancel(int inputAmount, String inputAccountNumber);
     public abstract String getType();
     public abstract void process();
 }

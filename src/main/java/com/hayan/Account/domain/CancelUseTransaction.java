@@ -1,9 +1,13 @@
 package com.hayan.Account.domain;
 
+import com.hayan.Account.exception.CustomException;
+import com.hayan.Account.exception.ErrorCode;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import jakarta.persistence.OneToOne;
 import lombok.NoArgsConstructor;
+
+import java.util.Objects;
 
 import static lombok.AccessLevel.PROTECTED;
 
@@ -18,6 +22,11 @@ public class CancelUseTransaction extends Transaction {
     public CancelUseTransaction(Account account, Integer amount, Transaction originalTransaction, TransactionResult transactionResult) {
         super(account, amount, transactionResult);
         this.originalTransaction = originalTransaction;
+    }
+
+    @Override
+    public void canCancel(int inputAmount, String inputAccountNumber) {
+        throw new CustomException(ErrorCode.UNSUPPORTED_TRANSACTION_TYPE);
     }
 
     @Override

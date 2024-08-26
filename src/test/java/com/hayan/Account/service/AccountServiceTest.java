@@ -37,10 +37,10 @@ class AccountServiceTest {
     @Test
     void 이름과_초기_잔액으로_계좌를_생성할_수_있다() {
         // Given
-        CreateAccountRequestDto request = new CreateAccountRequestDto("조하얀", 1000);
+        var createAccountRequest = new CreateAccountRequestDto("조하얀", 1000);
 
         // When
-        CreateAccountResponseDto response = accountService.createAccount(request);
+        CreateAccountResponseDto response = accountService.createAccount(createAccountRequest);
 
         // Then
         assertThat(response).isNotNull();
@@ -58,10 +58,10 @@ class AccountServiceTest {
         Member member = memberService.getByName("조하얀");
         Account account = Account.of(member, "0123456789", 0);
         accountRepository.save(account);
-        CloseAccountRequestDto request = new CloseAccountRequestDto(member.getName(), account.getAccountNumber());
+        var closeAccountRequest = new CloseAccountRequestDto(member.getName(), account.getAccountNumber());
 
         // When
-        accountService.closeAccount(request);
+        accountService.closeAccount(closeAccountRequest);
 
         // Then
         assertThat(account.getAccountStatus()).isEqualTo(UNREGISTERED);
@@ -105,9 +105,10 @@ class AccountServiceTest {
         Member member = memberService.getByName("조하얀");
         Account account = Account.of(member, "0123456789", 500);
         accountRepository.save(account);
+        var closeAccountRequest = new CloseAccountRequestDto(member.getName(), account.getAccountNumber());
 
         // When & Then
-        assertThatThrownBy(() -> accountService.closeAccount(new CloseAccountRequestDto("조하얀", "0123456789")))
+        assertThatThrownBy(() -> accountService.closeAccount(closeAccountRequest))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BALANCE_REMAINING_FOR_CLOSE);
     }
@@ -117,11 +118,12 @@ class AccountServiceTest {
         // Given
         Member member = memberService.getByName("조하얀");
         Account account = Account.of(member, "0123456789", 0);
-        account.close();
+        account.close(member.getId());
         accountRepository.save(account);
+        var closeAccountRequest = new CloseAccountRequestDto(member.getName(), account.getAccountNumber());
 
         // When & Then
-        assertThatThrownBy(() -> accountService.closeAccount(new CloseAccountRequestDto("조하얀", "0123456789")))
+        assertThatThrownBy(() -> accountService.closeAccount(closeAccountRequest))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCOUNT_ALREADY_CLOSED);
     }

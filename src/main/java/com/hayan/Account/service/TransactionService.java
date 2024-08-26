@@ -20,7 +20,6 @@ import static com.hayan.Account.exception.ErrorCode.*;
 public class TransactionService {
     private final MemberService memberService;
     private final AccountService accountService;
-    private final AccountValidationService accountValidationService;
     private final TransactionRepository transactionRepository;
 
     @DistributedLock(key = "#request.accountNumber")
@@ -28,7 +27,7 @@ public class TransactionService {
         Member member = memberService.getByName(request.memberName());
         Account account = accountService.getByAccountNumber(request.accountNumber());
 
-        accountValidationService.isAccountOwner(member.getId(), account.getMember().getId());
+        account.isOwner(member.getId());
 
         Transaction transaction = null;
 
@@ -64,7 +63,8 @@ public class TransactionService {
         Transaction originalTransaction = getById(request.transactionId());
         Account account = accountService.getByAccountNumber(originalTransaction.getAccount().getAccountNumber());
 
-        validateCancelRequest(request, originalTransaction, account);
+        originalTransaction.canCancel(request.amount(), request.accountNumber());
+        isCancelled(originalTransaction);
 
         Transaction transaction = null;
 
@@ -105,17 +105,8 @@ public class TransactionService {
                 .orElseThrow(() -> new CustomException(TRANSACTION_NOT_FOUND));
     }
 
-    private void validateCancelRequest(CancelUseRequestDto request, Transaction originalTransaction, Account account) {
-        if (originalTransaction instanceof CancelUseTransaction)
-            throw new CustomException(UNSUPPORTED_TRANSACTION_TYPE);
-
+    private void isCancelled(Transaction originalTransaction) {
         if (transactionRepository.existsByOriginalTransaction(originalTransaction))
             throw new CustomException(TRANSACTION_ALREADY_CANCELLED);
-
-        if (!request.amount().equals(originalTransaction.getAmount()))
-            throw new CustomException(AMOUNT_MISMATCH);
-
-        if (!request.accountNumber().equals(account.getAccountNumber()))
-            throw new CustomException(ACCOUNT_MISMATCH);
     }
 }

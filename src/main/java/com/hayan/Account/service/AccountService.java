@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.hayan.Account.exception.ErrorCode.ACCOUNT_LIMIT_EXCEEDED;
 import static com.hayan.Account.exception.ErrorCode.ACCOUNT_NOT_FOUND;
 
 @Service
@@ -24,13 +25,12 @@ import static com.hayan.Account.exception.ErrorCode.ACCOUNT_NOT_FOUND;
 @RequiredArgsConstructor
 public class AccountService {
     private final MemberService memberService;
-    private final AccountValidationService accountValidationService;
     private final AccountRepository accountRepository;
 
     @Transactional
     public CreateAccountResponseDto createAccount(CreateAccountRequestDto request) {
         Member member = memberService.getByName(request.memberName());
-        accountValidationService.checkAccountCreationLimit(member.getId());
+        checkAccountCreationLimit(member.getId());
 
         String accountNumber = generateAccountNumber();
         Account account = Account.of(member, accountNumber, request.balance());
@@ -44,9 +44,7 @@ public class AccountService {
         Member member = memberService.getByName(request.memberName());
         Account account = getByAccountNumber(request.accountNumber());
 
-        accountValidationService.isAccountOwner(member.getId(), account.getMember().getId());
-        accountValidationService.canCloseAccount(account);
-        account.close();
+        account.close(member.getId());
 
         return CloseAccountResponseDto.of(request.memberName(), account.getAccountNumber(), account.getUpdatedAt());
     }
@@ -67,6 +65,11 @@ public class AccountService {
         }
 
         return accountNumber;
+    }
+
+    private void checkAccountCreationLimit(Long memberId) {
+        if (accountRepository.countByMemberId(memberId) >= 10)
+            throw new CustomException(ACCOUNT_LIMIT_EXCEEDED);
     }
 
     public Account getByAccountNumber(String accountNumber) {
