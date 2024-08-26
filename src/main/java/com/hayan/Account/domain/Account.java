@@ -51,11 +51,11 @@ public class Account extends BaseEntity {
         this.accountStatus = UNREGISTERED;
     }
 
-    public void useBalance(Integer amount) {
+    public void withdraw(Integer amount) {
         this.balance -= amount;
     }
 
-    public void cancelUseBalance(Integer amount) {
+    public void deposit(Integer amount) {
         this.balance += amount;
     }
 }

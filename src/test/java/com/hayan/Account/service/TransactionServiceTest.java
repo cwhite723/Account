@@ -12,15 +12,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
+import static com.hayan.Account.domain.Transaction.TransactionResult.FAILURE;
 import static com.hayan.Account.domain.Transaction.TransactionResult.SUCCESS;
 import static com.hayan.Account.exception.ErrorCode.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +30,9 @@ class TransactionServiceTest {
 
     @Autowired
     private TransactionService transactionService;
+
+    @Autowired
+    private AccountService accountService;
 
     @Autowired
     private AccountRepository accountRepository;
@@ -48,7 +50,7 @@ class TransactionServiceTest {
     void setUp() {
         member = memberService.getByName("조하얀");
         account = Account.of(member, "0123456789", 10000);
-        accountRepository.saveAndFlush(account);
+        accountRepository.save(account);
     }
 
     @AfterEach
@@ -60,20 +62,23 @@ class TransactionServiceTest {
     @Test
     void 이름과_계좌번호와_금액으로_잔액을_사용하면_계좌_잔액이_사용_금액만큼_차감된다() {
         // Given
+        UseBalanceRequestDto request = new UseBalanceRequestDto("조하얀", "0123456789", 2000);
 
         // When
-        transactionService.useBalance(new UseBalanceRequestDto("조하얀", "0123456789", 2000));
+        transactionService.useBalance(request);
 
         // Then
-        assertThat(account.getBalance()).isEqualTo(8000);
+        Account updatedAccount = accountService.getByAccountNumber("0123456789");
+        assertThat(updatedAccount.getBalance()).isEqualTo(8000);
     }
 
     @Test
     void 잔액을_사용하면_잔액_사용_거래로_저장된다() {
         // Given
+        UseBalanceRequestDto request = new UseBalanceRequestDto("조하얀", "0123456789", 2000);
 
         // When
-        TransactionResponseDto response = transactionService.useBalance(new UseBalanceRequestDto("조하얀", "0123456789", 2000));
+        TransactionResponseDto response = transactionService.useBalance(request);
 
         // Then
         assertThat(transactionService.getById(response.transactionId())).isInstanceOf(UseBalanceTransaction.class);
@@ -87,9 +92,11 @@ class TransactionServiceTest {
         // Given
         TransactionResponseDto response = transactionService.useBalance(new UseBalanceRequestDto("조하얀", "0123456789", 2000));
         Transaction originalTransaction = transactionService.getById(response.transactionId());
+        CancelUseRequestDto request = new CancelUseRequestDto(originalTransaction.getId(), "0123456789", 2000);
+
 
         // When
-        transactionService.cancelUse(new CancelUseRequestDto(originalTransaction.getId(), "0123456789", 2000));
+        transactionService.cancelUse(request);
 
         // Then
         assertThat(account.getBalance()).isEqualTo(10000);
@@ -100,9 +107,10 @@ class TransactionServiceTest {
         // Given
         TransactionResponseDto response = transactionService.useBalance(new UseBalanceRequestDto("조하얀", "0123456789", 2000));
         Transaction originalTransaction = transactionService.getById(response.transactionId());
+        CancelUseRequestDto request = new CancelUseRequestDto(originalTransaction.getId(), "0123456789", 2000);
 
         // When
-        TransactionResponseDto cancelResponse = transactionService.cancelUse(new CancelUseRequestDto(originalTransaction.getId(), "0123456789", 2000));
+        TransactionResponseDto cancelResponse = transactionService.cancelUse(request);
         Transaction cancelTransaction = transactionService.getById(cancelResponse.transactionId());
 
         // Then
@@ -113,97 +121,93 @@ class TransactionServiceTest {
     }
 
     @Test
-    void 해지된_계좌에서_잔액을_사용하면_예외가_발생한다() {
+    void 거래에_실패해도_FAILURE_Result로_저장된다() {
         // Given
-        account.close();
+        UseBalanceRequestDto request = new UseBalanceRequestDto("조하얀", "0123456789", 12000);
+
+        // When
+        TransactionResponseDto response = transactionService.useBalance(request);
 
         // When & Then
-        assertThatThrownBy(() -> transactionService.useBalance(new UseBalanceRequestDto("조하얀", "0123456789", 2000)))
-                .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ACCOUNT_ALREADY_CLOSED);
+        Transaction transaction = transactionService.getById(response.transactionId());
+        assertThat(transaction).isInstanceOf(UseBalanceTransaction.class);
+        assertThat(account.getBalance()).isEqualTo(10000);
+        assertThat(transaction.getTransactionResult()).isEqualTo(FAILURE);
     }
-
-    @Test
-    @Transactional
-    void 잔액이_부족할_때_예외가_발생한다() {
-        // Given
-
-        // When & Then
-        assertThatThrownBy(() -> transactionService.useBalance(new UseBalanceRequestDto("조하얀", "0123456789", 12000)))
-                .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", INSUFFICIENT_BALANCE);
-    }
-
-//    @Test
-//    void 거래에_실패해도_FAILURE_Result로_저장된다() throws InterruptedException {
-//        // Given
-//        RLock mockLock = Mockito.mock(RLock.class);
-//
-//        Mockito.when(redissonClient.getLock(Mockito.anyString()))
-//                .thenReturn(mockLock);
-//
-//        Mockito.when(mockLock.tryLock(Mockito.anyLong(), Mockito.anyLong(), Mockito.any(TimeUnit.class)))
-//                .thenReturn(false);
-//
-//        // When
-//        TransactionResponseDto response = transactionService.useBalance(new UseBalanceRequestDto("조하얀", "0123456789", 2000));
-//
-//        // When & Then
-//        Transaction transaction = transactionService.getById(response.transactionId());
-//        assertThat(transaction).isInstanceOf(UseBalanceTransaction.class);
-//        assertThat(account.getBalance()).isEqualTo(10000);
-//        assertThat(transaction.getTransactionResult()).isEqualTo(FAILURE);
-//    }
 
     @Test
     void 잔액_10000원_계좌에_1000원_사용_요청이_동시에_11번_들어오면_10번만_성공한다() throws InterruptedException {
         // Given
-        int totalRequest = 11;
-        CountDownLatch startLatch = new CountDownLatch(1);
-        CountDownLatch doneLatch = new CountDownLatch(totalRequest);
-
-        List<TransactionResponseDto> successTransactions = Collections.synchronizedList(new ArrayList<>());
-        List<CustomException> failTransactions = Collections.synchronizedList(new ArrayList<>());
+        int numberOfThreads = 11;
+        ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch latch = new CountDownLatch(numberOfThreads);
 
         UseBalanceRequestDto request = new UseBalanceRequestDto("조하얀", "0123456789", 1000);
 
-        ExecutorService executorService = Executors.newFixedThreadPool(totalRequest);
-
-        // Whenacc
-        for (int i = 0; i < totalRequest; i++) {
+        // When
+        for (int i = 0; i < numberOfThreads; i++) {
             executorService.submit(() -> {
                 try {
-                    startLatch.await();
-
-                    TransactionResponseDto response = transactionService.useBalance(request);
-                    successTransactions.add(response);
-                } catch (CustomException e) {
-                    failTransactions.add(e);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                    transactionService.useBalance(request);
                 } finally {
-                    doneLatch.countDown();
+                    latch.countDown();
                 }
             });
         }
-        startLatch.countDown();
-        doneLatch.await();
-        executorService.shutdown();
+
+        latch.await();
+        Account updatedAccount = accountService.getByAccountNumber("0123456789");
+
+        List<Transaction> transactions = transactionRepository.findAll();
+        long successCount = transactions.stream()
+                .filter(transaction -> transaction.getTransactionResult() == Transaction.TransactionResult.SUCCESS)
+                .count();
+        long failureCount = transactions.stream()
+                .filter(transaction -> transaction.getTransactionResult() == Transaction.TransactionResult.FAILURE)
+                .count();
 
         // Then
-        assertThat(successTransactions).hasSize(10);
-        assertThat(failTransactions).hasSize(1);
-        assertThat(failTransactions.get(0).getErrorCode()).isEqualTo(INSUFFICIENT_BALANCE);
-        assertThat(account.getBalance()).isEqualTo(0);
+        assertThat(updatedAccount.getBalance()).isEqualTo(0);
+        assertThat(successCount).isEqualTo(10);
+        assertThat(failureCount).isEqualTo(1);
     }
 
     @Test
-    void 동일한_잔액_사용_취소_거래가_동시에_들어오면_한_번만_성공한다() {
+    void 동일한_잔액_사용_취소_거래가_동시에_들어오면_한_번만_성공한다() throws InterruptedException {
         // Given
+        TransactionResponseDto response = transactionService.useBalance(new UseBalanceRequestDto("조하얀", "0123456789", 2000));
+        Transaction originalTransaction = transactionService.getById(response.transactionId());
+
+        int numberOfThreads = 5;
+        ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch latch = new CountDownLatch(numberOfThreads);
+
+        CancelUseRequestDto request = new CancelUseRequestDto(originalTransaction.getId(), "0123456789", 2000);
 
         // When
+        for (int i = 0; i < numberOfThreads; i++) {
+            executorService.submit(() -> {
+                try {
+                    transactionService.cancelUse(request);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+
+        List<CancelUseTransaction> cancelTransactions = transactionRepository.findAll().stream()
+                .filter(transaction -> transaction instanceof CancelUseTransaction)
+                .map(transaction -> (CancelUseTransaction) transaction)
+                .collect(Collectors.toList());
+
+        long successCount = cancelTransactions.stream()
+                .filter(transaction -> transaction.getTransactionResult() == Transaction.TransactionResult.SUCCESS)
+                .count();
 
         // Then
+        assertThat(successCount).isEqualTo(1);
     }
 
     @Test
@@ -250,14 +254,14 @@ class TransactionServiceTest {
     }
 
     @Test
-    @Transactional
     void 입력_금액이_원거래_금액과_다르면_예외가_발생한다() {
         // Given
         Transaction transaction = new UseBalanceTransaction(account, 3000, SUCCESS);
         transactionRepository.save(transaction);
+        CancelUseRequestDto request = new CancelUseRequestDto(transaction.getId(), "0123456789", 4000);
 
         // When & Then
-        assertThatThrownBy(() -> transactionService.cancelUse(new CancelUseRequestDto(transaction.getId(), "0123456789", 4000)))
+        assertThatThrownBy(() -> transactionService.cancelUse(request))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", AMOUNT_MISMATCH);
     }

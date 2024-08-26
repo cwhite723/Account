@@ -27,6 +27,6 @@ public class CancelUseTransaction extends Transaction {
 
     @Override
     public void process() {
-        getAccount().cancelUseBalance(getAmount());
+        getAccount().deposit(getAmount());
     }
 }

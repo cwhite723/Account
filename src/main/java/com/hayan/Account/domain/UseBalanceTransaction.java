@@ -22,6 +22,6 @@ public class UseBalanceTransaction extends Transaction{
 
     @Override
     public void process() {
-        getAccount().useBalance(getAmount());
+        getAccount().withdraw(getAmount());
     }
 }

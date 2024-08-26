@@ -31,11 +31,6 @@ public class AccountValidationService {
         isClosed(account.getAccountStatus());
     }
 
-    void canUseBalance(Account account, Integer amount) {
-        isClosed(account.getAccountStatus());
-        isBalanceInsufficient(account.getBalance(), amount);
-    }
-
     private void hasRemainingBalance(Integer balance) {
         if (balance > 0)
             throw new CustomException(BALANCE_REMAINING_FOR_CLOSE);
@@ -44,10 +39,5 @@ public class AccountValidationService {
     private void isClosed(Account.AccountStatus status) {
         if (status == UNREGISTERED)
             throw new CustomException(ACCOUNT_ALREADY_CLOSED);
-    }
-
-    private void isBalanceInsufficient(Integer balance, Integer amount) {
-        if (balance < amount)
-            throw new CustomException(INSUFFICIENT_BALANCE);
     }
 }
